@@ -38,7 +38,8 @@ namespace Fish_Out_Of_Water
 
         static void KillFish(LiveMixin liveMixin)
         {
-            //AddDebug("Kill " + liveMixin.gameObject.name);
+            AddDebug("KillFish " + liveMixin.gameObject.name);
+
             //Main.Log("Kill " + liveMixin.gameObject.name);
             liveMixin.health = 0f;
             liveMixin.tempDamage = 0f;
@@ -183,8 +184,21 @@ namespace Fish_Out_Of_Water
             if (Inventory.main.usedStorage.Count > 0)
             {
                 IItemsContainer itemsContainer = Inventory.main.usedStorage[storageCount - 1];
+
                 if (itemsContainer is ItemsContainer)
-                    return (itemsContainer as ItemsContainer);
+                {
+                    ItemsContainer container = itemsContainer as ItemsContainer;
+                    GameObject parent = container.tr.parent.gameObject;
+                    //AddDebug(" parent " + parent.name);
+                    //Main.Log(" parent " + parent.name);
+                    //if (parent.GetComponentInChildren<Aquarium>())
+                    if (parent.name == "SeaTruckAquariumModule(Clone)" || parent.name == "Aquarium(Clone)")
+                    {
+                        //AddDebug(container.tr.name + " Aquarium ");
+                        return null;
+                    }
+                    return container;
+                }
             }
             return null;
         }
@@ -235,7 +249,7 @@ namespace Fish_Out_Of_Water
         //[HarmonyPatch(typeof(StorageContainer))]
         class StorageContainer_Open_Patch
         { // escape pod does not have this
-            [HarmonyPatch(nameof(StorageContainer.Open), new Type[] { typeof(Transform) })]
+            //[HarmonyPatch(nameof(StorageContainer.Open), new Type[] { typeof})]
             public static void Postfix(StorageContainer __instance)
             {
                 ErrorMessage.AddDebug("StorageContainer Open");
