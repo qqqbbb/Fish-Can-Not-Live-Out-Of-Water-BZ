@@ -23,24 +23,32 @@ namespace Fish_Out_Of_Water
 
         public static void OnPlayerIsUnderwaterForSwimmingChanged(Utils.MonitoredValue<bool> isUnderwaterForSwimming)
         {
-            //ErrorMessage.AddDebug(" OnPlayerIsUnderwaterForSwimmingChanged " + Player.main.IsUnderwaterForSwimming());
+            //AddDebug(" OnPlayerIsUnderwaterForSwimmingChanged " + Player.main.IsUnderwaterForSwimming());
             AddFishToList();
         }
 
         private static void CheckFish(LiveMixin liveMixin)
         {
-            if (DayNightCycle.main.timePassedAsFloat - fishOutOfWater[liveMixin] > Main.config.outOfWaterLifeTime * 60f)
+            if (!fishOutOfWater.ContainsKey(liveMixin))
+                return;
+
+            float timeOutOfWater = DayNightCycle.main.timePassedAsFloat - fishOutOfWater[liveMixin];
+            if (timeOutOfWater > Main.config.outOfWaterLifeTime * 60f)
             {
+                //AddDebug("KillFish " + liveMixin.gameObject.name + " " + timeOutOfWater.ToString("0.0"));
+                //Main.Log("Kill " + liveMixin.gameObject.name + " " + timeOutOfWater.ToString("0.0"));
                 fishOutOfWater.Remove(liveMixin);
                 KillFish(liveMixin);
             }
+            //else
+            //    AddDebug("CheckFish " + liveMixin.gameObject.name + " " + timeOutOfWater.ToString("0.0"));
         }
 
         static void KillFish(LiveMixin liveMixin)
         {
-            AddDebug("KillFish " + liveMixin.gameObject.name);
-
+            //AddDebug("KillFish " + liveMixin.gameObject.name);
             //Main.Log("Kill " + liveMixin.gameObject.name);
+
             liveMixin.health = 0f;
             liveMixin.tempDamage = 0f;
             liveMixin.SyncUpdatingState();
@@ -60,6 +68,9 @@ namespace Fish_Out_Of_Water
             //        liveMixin.gameObject.SendMessage("OnKill", SendMessageOptions.DontRequireReceiver);
             //}
 
+            AquariumFish af = liveMixin.GetComponent<AquariumFish>();
+            if (af)
+                UnityEngine.Object.Destroy(af);
             Locomotion locomotion = liveMixin.GetComponent<Locomotion>();
             locomotion.enabled = false;
             CreatureDeath creatureDeath = liveMixin.GetComponent<CreatureDeath>();
@@ -101,8 +112,15 @@ namespace Fish_Out_Of_Water
             HashSet<LiveMixin> fishToKill = new HashSet<LiveMixin>();
             HashSet<LiveMixin> fishToCheck = new HashSet<LiveMixin>();
             //ErrorMessage.AddDebug("run AddFishToList ");
+            GameObject parent = null;
+            bool aquarium = false;
             if (container == null)
                 container = Inventory.main.container;
+            else
+            {
+                parent = container.tr.parent.gameObject;
+                aquarium = parent.name == "SeaTruckAquariumModule(Clone)" || parent.name == "Aquarium(Clone)";
+            }
 
             foreach (InventoryItem item in container)
             {
@@ -111,6 +129,12 @@ namespace Fish_Out_Of_Water
                 {
                     LiveMixin liveMixin = item.item.GetComponent<LiveMixin>();
                     //Main.Log("AddFishToList " + liveMixin.gameObject.name);
+                    if (aquarium)
+                    {
+                        //AddDebug(container.tr.name + " Aquarium ");
+                        fishOutOfWater.Remove(liveMixin);
+                        continue;
+                    }
                     if (underWater)
                     {
                         if (fishOutOfWater.ContainsKey(liveMixin))
@@ -131,7 +155,7 @@ namespace Fish_Out_Of_Water
                         }
                         else
                         {
-                            //ErrorMessage.AddDebug("Add fish " + liveMixin.gameObject.name);
+                            //AddDebug("Add fish " + liveMixin.gameObject.name);
                             fishOutOfWater.Add(liveMixin, DayNightCycle.main.timePassedAsFloat);
                         }
                     }
@@ -145,8 +169,12 @@ namespace Fish_Out_Of_Water
 
         private static void KillFishInContainer(ItemsContainer container)
         {
-            //ErrorMessage.AddDebug("KillFishInContainer " );
+            //AddDebug("KillFishInContainer " + container.tr.name);
             HashSet<LiveMixin> fishToCheck = new HashSet<LiveMixin>();
+            GameObject parent = container.tr.parent.gameObject;
+            bool aquarium = parent.name == "SeaTruckAquariumModule(Clone)" || parent.name == "Aquarium(Clone)";
+            AddFishToList(container);
+            AddFishToList();
             foreach (InventoryItem item in container)
             {
                 if (IsEatableFishAlive(item.item.gameObject))
@@ -154,6 +182,13 @@ namespace Fish_Out_Of_Water
                     LiveMixin liveMixin = item.item.GetComponent<LiveMixin>();
                     if (fishOutOfWater.ContainsKey(liveMixin))
                     {
+                        //AddDebug(" KillFishInContainer " + item.item.GetTechType());
+                        if (aquarium)
+                        {
+                            //AddDebug(container.tr.name + " Aquarium ");
+                            fishOutOfWater.Remove(liveMixin);
+                            continue;
+                        }
                         //ErrorMessage.AddDebug("fishOutOfWaterList " + item.item.GetTechType());
                         //CheckFish(liveMixin);
                         fishToCheck.Add(liveMixin);
@@ -188,15 +223,15 @@ namespace Fish_Out_Of_Water
                 if (itemsContainer is ItemsContainer)
                 {
                     ItemsContainer container = itemsContainer as ItemsContainer;
-                    GameObject parent = container.tr.parent.gameObject;
+                    //GameObject parent = container.tr.parent.gameObject;
                     //AddDebug(" parent " + parent.name);
                     //Main.Log(" parent " + parent.name);
                     //if (parent.GetComponentInChildren<Aquarium>())
-                    if (parent.name == "SeaTruckAquariumModule(Clone)" || parent.name == "Aquarium(Clone)")
-                    {
+                    //if (parent.name == "SeaTruckAquariumModule(Clone)" || parent.name == "Aquarium(Clone)")
+                    //{
                         //AddDebug(container.tr.name + " Aquarium ");
-                        return null;
-                    }
+                        //return null;
+                    //}
                     return container;
                 }
             }
@@ -215,23 +250,10 @@ namespace Fish_Out_Of_Water
                 if (container != null)
                     AddFishToList(container);
 
-                if (!Player.main.IsUnderwaterForSwimming())
+                if (!Player.main.IsUnderwater())
                     Player.main.StartCoroutine(KillCoroutine());
             }
         }
-
-        //[HarmonyPatch(typeof(QuickSlots), "NotifySelect")]
-        //class QuickSlots_NotifySelect_Patch
-        //{
-        //    public static void Postfix(QuickSlots __instance, int slotID)
-        //    {
-        //        LiveMixin liveMixin = __instance.GetComponent<LiveMixin>();
-        //        if (liveMixin && fishOutOfWater.ContainsKey(liveMixin))
-        //        {
-        //            CheckFish(liveMixin);
-        //        }
-        //    }
-        //}
 
         [HarmonyPatch(typeof(Pickupable), "Drop", new Type[] { typeof(Vector3), typeof(Vector3) })]
         class Pickupable_Drop_Patch
@@ -241,8 +263,26 @@ namespace Fish_Out_Of_Water
                 LiveMixin liveMixin = __instance.GetComponent<LiveMixin>();
                 if (liveMixin && fishOutOfWater.ContainsKey(liveMixin))
                 {
-                    CheckFish(liveMixin);
+                    if (Player.main.IsUnderwater())
+                    {
+                        //AddDebug("reset time " + liveMixin.gameObject.name);
+                        fishOutOfWater.Remove(liveMixin);
+                    }
+                    else
+                        CheckFish(liveMixin);
                 }
+            }
+        }
+
+        //[HarmonyPatch(typeof(Inventory))]
+        class Inventory_GetAllItemActions_Patch
+        {
+            [HarmonyPatch("GetAllItemActions")]
+            public static void Postfix(Inventory __instance, InventoryItem item, ItemAction __result)
+            {
+                IItemsContainer oppositeContainer = __instance.GetOppositeContainer(item);
+                AddDebug("GetAllItemActions " + item.item.GetTechName() + " " + oppositeContainer.AllowedToAdd(item.item, false));
+
             }
         }
 
@@ -268,6 +308,18 @@ namespace Fish_Out_Of_Water
             }
         }
 
+        //[HarmonyPatch(typeof(QuickSlots), "NotifySelect")]
+        //class QuickSlots_NotifySelect_Patch
+        //{
+        //    public static void Postfix(QuickSlots __instance, int slotID)
+        //    {
+        //        LiveMixin liveMixin = __instance.GetComponent<LiveMixin>();
+        //        if (liveMixin && fishOutOfWater.ContainsKey(liveMixin))
+        //        {
+        //            CheckFish(liveMixin);
+        //        }
+        //    }
+        //}
 
     }
 }
