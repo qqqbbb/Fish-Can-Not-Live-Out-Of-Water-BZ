@@ -60,10 +60,8 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Patches.cs" />
     <Compile Include="Main.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <Compile Include="Patch.cs" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Config.cs" />
