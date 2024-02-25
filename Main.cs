@@ -1,26 +1,23 @@
 ﻿
 using HarmonyLib;
-using QModManager.API.ModLoading;
 using System.Reflection;
 using System;
-using SMLHelper.V2.Handlers;
+using BepInEx;
+using Nautilus.Handlers;
 using System.Collections.Generic;
 using UnityEngine;
 using static ErrorMessage;
 
 namespace Fish_Out_Of_Water
 {
-    [QModCore]
-    public class Main
+    [BepInPlugin(GUID, MODNAME, VERSION)]
+    public class Main : BaseUnityPlugin
     {
+        private const string
+            MODNAME = "Fish can not live out of water",
+            GUID = "qqqbbb.subnauticaBZ.fishOutOfWater",
+            VERSION = "3.0.0";
         internal static Config config { get; } = OptionsPanelHandler.RegisterModOptions<Config>();
-        //static bool gameLoaded = false;
-        //public static PDA pda;
-
-        public static void Log(string str, QModManager.Utility.Logger.Level lvl = QModManager.Utility.Logger.Level.Debug)
-        {
-            QModManager.Utility.Logger.Log(lvl, str);
-        }
 
         public static void Setup()
         {
@@ -56,12 +53,13 @@ namespace Fish_Out_Of_Water
             }
         }
 
-        [QModPatch]
-        public static void Load()
+        private void Start()
         {
-            config.Load();
-            Assembly assembly = Assembly.GetExecutingAssembly();
-            new Harmony($"qqqbbb_{assembly.GetName().Name}").PatchAll(assembly);
+            //AddDebug("Mono Start ");
+            //Logger.LogInfo("Mono Start");
+            //config.Load();
+            Harmony harmony = new Harmony(GUID);
+            harmony.PatchAll();
         }
     }
 }

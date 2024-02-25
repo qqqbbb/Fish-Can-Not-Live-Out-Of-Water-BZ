@@ -9,15 +9,19 @@ namespace Fish_Out_Of_Water
 {
     class Fish_Out_Of_Water
     {
+        private const float seconds = 60f;
         public static Dictionary<LiveMixin, float> fishOutOfWater = new Dictionary<LiveMixin, float>();
         public static Dictionary<LiveMixin, float> fishInInventory = new Dictionary<LiveMixin, float>();
 
         public static bool IsEatableFish(GameObject go)
         {
             Creature creature = go.GetComponent<Creature>();
+            if (creature == null) return false;
             Eatable eatable = go.GetComponent<Eatable>();
+            if (eatable == null) return false;
             LiveMixin liveMixin = go.GetComponent<LiveMixin>();
-            return creature && eatable && liveMixin;
+            if (liveMixin == null) return false;
+            else return true;
         }
 
         public static void OnPlayerIsUnderwaterForSwimmingChanged(Utils.MonitoredValue<bool> isUnderwaterForSwimming)
@@ -26,11 +30,12 @@ namespace Fish_Out_Of_Water
             //AddFishToList();
         }
 
-        private static void CheckFishInContainer(ItemsContainer container)
+        static void CheckFishInContainer(ItemsContainer container)
         {
             if (container == null)
                 return;
 
+            List<LiveMixin> fishToKill = new List<LiveMixin>();
             foreach (InventoryItem item in container)
             {
                 //AddDebug("CheckFishInInventory "+ item.item.gameObject.name);
@@ -44,20 +49,22 @@ namespace Fish_Out_Of_Water
                     if (fishInInventory.ContainsKey(liveMixin))
                     {
                         float timeOutOfWater = DayNightCycle.main.timePassedAsFloat - fishInInventory[liveMixin];
-                        if (timeOutOfWater > Main.config.outOfWaterLifeTime * 60f)
-                            KillFish(liveMixin);
+                        if (timeOutOfWater > Main.config.outOfWaterLifeTime * seconds)
+                            fishToKill.Add(liveMixin);
                     }
                     else
                         fishInInventory.Add(liveMixin, DayNightCycle.main.timePassedAsFloat);
                 }
             }
+            foreach (LiveMixin lm in fishToKill)
+                KillFish(lm);
         }
-           
+
         private static void CheckFishInInventory()
         {
             if (Player.main.inExosuit)
             {
-                Exosuit exosuit = Player.main.GetComponentInParent<Exosuit>();
+			   Exosuit exosuit = Player.main.currentMountedVehicle as Exosuit;
                 if (exosuit && !exosuit.IsUnderwater() && exosuit.storageContainer)
                     CheckFishInContainer(exosuit.storageContainer.container);
             }
@@ -77,10 +84,14 @@ namespace Fish_Out_Of_Water
             foreach (KeyValuePair<LiveMixin, float> pair in fishOutOfWater)
             {
                 LiveMixin liveMixin = pair.Key;
+                if (liveMixin == null)
+                    continue;
+
                 float timeOutOfWater = DayNightCycle.main.timePassedAsFloat - fishOutOfWater[liveMixin];
                 //AddDebug("CheckFish " + liveMixin.gameObject.name + " timeOutOfWater " + timeOutOfWater);
-                if (timeOutOfWater > Main.config.outOfWaterLifeTime * 60f)
-                    fishToKill.Add(liveMixin);
+                if (timeOutOfWater > Main.config.outOfWaterLifeTime * seconds)
+                    //if (timeOutOfWater > Main.config.outOfWaterLifeTime )
+                        fishToKill.Add(liveMixin);
             }
             foreach (LiveMixin lm in fishToKill)
             {
@@ -121,7 +132,7 @@ namespace Fish_Out_Of_Water
             liveMixin.gameObject.EnsureComponent<EcoTarget>().SetTargetType(EcoTargetType.DeadMeat);
 
             PlayerTool playerTool = Inventory.main.GetHeldTool();
-            if (playerTool && playerTool.gameObject.Equals(liveMixin.gameObject))
+            if (playerTool && playerTool.gameObject == liveMixin.gameObject)
                 Inventory.main.quickSlots.DeselectImmediate(); // prevent bug: equipped fish moving down
         }
 
@@ -144,7 +155,7 @@ namespace Fish_Out_Of_Water
 
                     //AddDebug("Pickupable Drop " + __instance.gameObject.name);
                     fishOutOfWater.Add(liveMixin, t);
-                    //fishInInventory.Remove(liveMixin);
+                    //fishInInventory.Remove(liveMixin); 
                 }
             }
 
@@ -208,7 +219,7 @@ namespace Fish_Out_Of_Water
         {
             public static void Postfix(ItemsContainer __instance, InventoryItem item)
             {
-                if (Player.main.IsUnderwaterForSwimming() || item.item == null || __instance.Equals(Inventory.main.container))
+                if (Player.main.IsUnderwaterForSwimming() || item.item == null || __instance == Inventory.main.container)
                     return;
 
                 GameObject go = item.item.gameObject;
