@@ -1,18 +1,21 @@
 ﻿
-using System.Collections.Generic;
+using BepInEx.Configuration;
 using Nautilus.Commands;
 using Nautilus.Handlers;
-using Nautilus.Options;
 using Nautilus.Json;
+using Nautilus.Options;
 using Nautilus.Options.Attributes;
+using System.Collections.Generic;
 
 namespace Fish_Out_Of_Water
 {
-    [Menu("Fish Can Not Live Out Of Water")]
-    public class Config : ConfigFile
+    internal class Config
     {
-        [Slider("Number of minutes fish live out of water", Min = 1, Max = 50, DefaultValue = 10, Step = 1, Format = "{0:F0}", Tooltip = "Real time minutes at default time scale")]
-        public int outOfWaterLifeTime = 10;
+        public static ConfigEntry<float> hoursFishCanLiveOutOfWater;
+        public static void Bind()
+        {
+            hoursFishCanLiveOutOfWater = Main.config.Bind("", "Number of hours fish live out of water", 1f, "");
 
+        }
     }
 }

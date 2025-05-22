@@ -1,112 +1,44 @@
 ﻿using HarmonyLib;
 using System;
-using UnityEngine;
 using System.Collections.Generic;
-using System.Collections;
+using System.Text;
+using UnityEngine;
 using static ErrorMessage;
+
 
 namespace Fish_Out_Of_Water
 {
-    class Fish_Out_Of_Water
+    internal class Patches
     {
-        private const float seconds = 60f;
-        public static Dictionary<LiveMixin, float> fishOutOfWater = new Dictionary<LiveMixin, float>();
-        public static Dictionary<LiveMixin, float> fishInInventory = new Dictionary<LiveMixin, float>();
+        static bool vehicleAboveWater = false;
+        static HashSet<IItemsContainer> aquariums = new HashSet<IItemsContainer>();
 
-        public static bool IsEatableFish(GameObject go)
+        public static void CleanUp()
         {
-            Creature creature = go.GetComponent<Creature>();
-            if (creature == null) return false;
-            Eatable eatable = go.GetComponent<Eatable>();
-            if (eatable == null) return false;
+            vehicleAboveWater = false;
+            aquariums.Clear();
+        }
+
+        static bool IsEatableFish(GameObject go)
+        {
+            if (go.GetComponent<Creature>() == null) return false;
+            if (go.GetComponent<Eatable>() == null) return false;
+            return go.GetComponent<LiveMixin>();
+        }
+
+        static bool IsEatableFishAlive(GameObject go)
+        {
+            if (go.GetComponent<Creature>() == null) return false;
+            if (go.GetComponent<Eatable>() == null) return false;
             LiveMixin liveMixin = go.GetComponent<LiveMixin>();
-            if (liveMixin == null) return false;
-            else return true;
-        }
-
-        public static void OnPlayerIsUnderwaterForSwimmingChanged(Utils.MonitoredValue<bool> isUnderwaterForSwimming)
-        {
-            //AddDebug(" OnPlayerIsUnderwaterForSwimmingChanged " + Player.main.IsUnderwaterForSwimming());
-            //AddFishToList();
-        }
-
-        static void CheckFishInContainer(ItemsContainer container)
-        {
-            if (container == null)
-                return;
-
-            List<LiveMixin> fishToKill = new List<LiveMixin>();
-            foreach (InventoryItem item in container)
-            {
-                //AddDebug("CheckFishInInventory "+ item.item.gameObject.name);
-                GameObject go = item.item.gameObject;
-                if (IsEatableFish(go))
-                {
-                    LiveMixin liveMixin = go.GetComponent<LiveMixin>();
-                    if (liveMixin == null || !liveMixin.IsAlive())
-                        continue;
-
-                    if (fishInInventory.ContainsKey(liveMixin))
-                    {
-                        float timeOutOfWater = DayNightCycle.main.timePassedAsFloat - fishInInventory[liveMixin];
-                        if (timeOutOfWater > Main.config.outOfWaterLifeTime * seconds)
-                            fishToKill.Add(liveMixin);
-                    }
-                    else
-                        fishInInventory.Add(liveMixin, DayNightCycle.main.timePassedAsFloat);
-                }
-            }
-            foreach (LiveMixin lm in fishToKill)
-                KillFish(lm);
-        }
-
-        private static void CheckFishInInventory()
-        {
-            if (Player.main.inExosuit)
-            {
-			   Exosuit exosuit = Player.main.currentMountedVehicle as Exosuit;
-                if (exosuit && !exosuit.IsUnderwater() && exosuit.storageContainer)
-                    CheckFishInContainer(exosuit.storageContainer.container);
-            }
-            if (Player.main.IsUnderwaterForSwimming())
-                fishInInventory = new Dictionary<LiveMixin, float>();
-            else
-                CheckFishInContainer(Inventory.main.container);
-        }
-
-        private static void CheckFish()
-        {
-            if (fishOutOfWater.Count == 0)
-                return;
-
-            //AddDebug("CheckFish Count " + dict.Count);
-            List<LiveMixin> fishToKill = new List<LiveMixin>();
-            foreach (KeyValuePair<LiveMixin, float> pair in fishOutOfWater)
-            {
-                LiveMixin liveMixin = pair.Key;
-                if (liveMixin == null)
-                    continue;
-
-                float timeOutOfWater = DayNightCycle.main.timePassedAsFloat - fishOutOfWater[liveMixin];
-                //AddDebug("CheckFish " + liveMixin.gameObject.name + " timeOutOfWater " + timeOutOfWater);
-                if (timeOutOfWater > Main.config.outOfWaterLifeTime * seconds)
-                    //if (timeOutOfWater > Main.config.outOfWaterLifeTime )
-                        fishToKill.Add(liveMixin);
-            }
-            foreach (LiveMixin lm in fishToKill)
-            {
-                fishOutOfWater.Remove(lm);
-                KillFish(lm);
-            }
+            return liveMixin && liveMixin.IsAlive();
         }
 
         static void KillFish(LiveMixin liveMixin)
         {
-            //AddDebug("KillFish " + liveMixin.gameObject.name);
-            fishInInventory.Remove(liveMixin);
-            fishOutOfWater.Remove(liveMixin);
-            liveMixin.health = 0f;
-            liveMixin.tempDamage = 0f;
+            //AddDebug("KillFish " + liveMixin.name);
+            liveMixin.health = 0;
+            liveMixin.tempDamage = 0;
             liveMixin.SyncUpdatingState();
             AquariumFish af = liveMixin.GetComponent<AquariumFish>();
             if (af)
@@ -115,8 +47,6 @@ namespace Fish_Out_Of_Water
             Locomotion locomotion = liveMixin.GetComponent<Locomotion>();
             locomotion.enabled = false;
             //CreatureDeath creatureDeath = liveMixin.GetComponent<CreatureDeath>();
-            Eatable eatable = liveMixin.GetComponent<Eatable>();
-            eatable.SetDecomposes(true);
             Rigidbody rb = liveMixin.GetComponent<Rigidbody>();
             if (rb)
             {
@@ -130,151 +60,310 @@ namespace Fish_Out_Of_Water
                 rb.angularDrag = Mathf.Max(rb.angularDrag, 1f);
             }
             liveMixin.gameObject.EnsureComponent<EcoTarget>().SetTargetType(EcoTargetType.DeadMeat);
+            Eatable eatable = liveMixin.GetComponent<Eatable>();
+            if (liveMixin.damageInfo != null)
+            {
+                liveMixin.damageInfo.Clear();
+                LiveMixin.damageInfoPool.Return(liveMixin.damageInfo);
+            }
+            BehaviourUpdateUtils.Deregister(liveMixin);
+            if (liveMixin.passDamageDataOnDeath)
+                liveMixin.gameObject.BroadcastMessage("OnKill", SendMessageOptions.DontRequireReceiver);
+            else if (liveMixin.broadcastKillOnDeath)
+                liveMixin.gameObject.BroadcastMessage("OnKill", SendMessageOptions.DontRequireReceiver);
 
-            PlayerTool playerTool = Inventory.main.GetHeldTool();
-            if (playerTool && playerTool.gameObject == liveMixin.gameObject)
-                Inventory.main.quickSlots.DeselectImmediate(); // prevent bug: equipped fish moving down
+            eatable.timeDecayStart = 0;
+            eatable.SetDecomposes(true);
         }
 
-        [HarmonyPatch(typeof(Pickupable))]
-        class Pickupable_Patch
+        static public void OnPlayerIsUnderwaterForSwimmingChanged(Utils.MonitoredValue<bool> isUnderwaterForSwimming)
         {
-            [HarmonyPostfix]
-            [HarmonyPatch("Drop", new Type[] { typeof(Vector3), typeof(Vector3), typeof(bool) })]
-            public static void DropPostfix(Pickupable __instance, Vector3 dropPosition)
+            //AddDebug(" OnPlayerIsUnderwaterForSwimmingChanged " + isUnderwaterForSwimming.value);
+            if (isUnderwaterForSwimming.value)
+                SaveFishInContainer(Inventory.main.container);
+            else
+                DoomFishInContainer(Inventory.main.container);
+        }
+
+        static void DoomFishInContainer(IItemsContainer container)
+        {
+            if (container == null)
+                return;
+
+            foreach (InventoryItem item in container)
             {
+                GameObject go = item.item.gameObject;
+                if (go.GetComponent<Creature>())
+                {
+                    LiveMixin liveMixin = go.GetComponent<LiveMixin>();
+                    if (liveMixin == null || !liveMixin.IsAlive())
+                        continue;
+
+                    Eatable eatable = go.GetComponent<Eatable>();
+                    if (eatable && eatable.timeDecayStart == 0)
+                    {
+                        //AddDebug("DoomFishInContainer " + item.item.gameObject.name);
+                        eatable.timeDecayStart = DayNightCycle.main.timePassedAsFloat;
+                    }
+                }
+            }
+        }
+
+        static void SaveFishInContainer(IItemsContainer container)
+        {
+            if (container == null)
+                return;
+
+            foreach (InventoryItem item in container)
+            {
+                GameObject go = item.item.gameObject;
+                if (go.GetComponent<Creature>())
+                {
+                    LiveMixin liveMixin = go.GetComponent<LiveMixin>();
+                    if (liveMixin == null || !liveMixin.IsAlive())
+                        continue;
+
+                    Eatable eatable = go.GetComponent<Eatable>();
+                    if (eatable)
+                        eatable.timeDecayStart = 0;
+                }
+            }
+        }
+
+        static void SaveFish(GameObject go)
+        {
+            Eatable eatable = go.GetComponent<Eatable>();
+            if (eatable)
+                eatable.timeDecayStart = 0;
+        }
+
+        static public void CheckFishInContainer(IItemsContainer container)
+        {
+            if (container == null)
+                return;
+
+            if (aquariums.Contains(container))
+                return;
+
+            //AddDebug("CheckFishInContainer " + container.label);
+            List<InventoryItem> fishToKill = new List<InventoryItem>();
+            foreach (InventoryItem item in container)
+            {
+                GameObject go = item.item.gameObject;
+                if (go.GetComponent<Creature>() == null)
+                    continue;
+
+                LiveMixin liveMixin = go.GetComponent<LiveMixin>();
+                if (liveMixin == null || !liveMixin.IsAlive())
+                    continue;
+
+                Eatable eatable = go.GetComponent<Eatable>();
+                if (eatable)
+                {
+                    //AddDebug("CheckFishInContainer " + item.item.gameObject.name);
+                    if (eatable.timeDecayStart == 0)
+                        DoomFish(eatable);
+                    else if (ShouldFishBeDead(eatable))
+                        fishToKill.Add(item);
+                }
+            }
+            //AddDebug("CheckFishInContainer fishToKill.Count " + fishToKill.Count);
+            foreach (InventoryItem ii in fishToKill)
+            {
+                LiveMixin liveMixin = ii.item.GetComponent<LiveMixin>();
+                if (liveMixin == null)
+                    continue;
+
+                KillFish(liveMixin);
+            }
+        }
+
+        static void CheckFish(GameObject go)
+        {
+            if (go == null)
+                return;
+
+            if (go.GetComponent<Creature>() == null)
+                return;
+
+            LiveMixin liveMixin = go.GetComponent<LiveMixin>();
+            if (liveMixin == null || !liveMixin.IsAlive())
+                return;
+
+            Eatable eatable = go.GetComponent<Eatable>();
+            if (eatable == null)
+                return;
+
+            if (ShouldFishBeDead(eatable))
+                KillFish(liveMixin);
+            else
+                DoomFish(eatable);
+        }
+
+        private static void DoomFish(Eatable eatable)
+        {
+            eatable.timeDecayStart = DayNightCycle.main.timePassedAsFloat;
+        }
+
+        private static void DoomFish(GameObject go)
+        {
+            Eatable eatable = go.GetComponent<Eatable>();
+            if (eatable == null) return;
+            eatable.timeDecayStart = DayNightCycle.main.timePassedAsFloat;
+        }
+
+        private static bool ShouldFishBeDead(Eatable eatable)
+        {
+            if (eatable && eatable.timeDecayStart > 0)
+            {
+                DateTime dateTimeNow = DayNightCycle.ToGameDateTime(DayNightCycle.main.timePassedAsFloat);
+                DateTime dateTimeStartSuf = DayNightCycle.ToGameDateTime(eatable.timeDecayStart);
+                double hoursOutOfWater = (dateTimeNow - dateTimeStartSuf).TotalHours;
+                //AddDebug($"{eatable.name} hours out of water {hoursOutOfWater}");
+                if (hoursOutOfWater > Config.hoursFishCanLiveOutOfWater.Value)
+                    return true;
+            }
+            return false;
+        }
+
+        public static void CheckVehicleInventory(Vehicle vehicle, bool aboveWater)
+        {
+            //AddDebug($"CheckVehicleInventory {aboveWater}");
+            Exosuit exosuit = vehicle as Exosuit;
+            if (exosuit)
+            {
+                if (aboveWater)
+                    CheckFishInContainer(exosuit.storageContainer.container);
+                else
+                    SaveFishInContainer(exosuit.storageContainer.container);
+
+                return;
+            }
+            List<IItemsContainer> containers = new List<IItemsContainer>();
+            vehicle.GetAllStorages(containers);
+            //AddDebug($"vehicle containers {containers.Count}");
+            foreach (var c in containers)
+            {
+                if (aboveWater)
+                    CheckFishInContainer(c);
+                else
+                    SaveFishInContainer(c);
+            }
+        }
+
+        [HarmonyPatch(typeof(PDA))]
+        class PDA_Patch
+        {
+            [HarmonyPostfix, HarmonyPatch("Open")]
+            public static void OpenPostfix(PDA __instance, PDATab tab)
+            {
+                //AddDebug("PDA Open " + tab);
                 if (Player.main.IsUnderwaterForSwimming())
                     return;
 
-                LiveMixin liveMixin = __instance.GetComponent<LiveMixin>();
-                if (liveMixin && liveMixin.IsAlive())
+                CheckFishInContainer(Inventory.main.container);
+                IItemsContainer itemsContainer = null;
+                for (int i = 0; i < Inventory.main.usedStorage.Count; i++)
                 {
-                    float t = DayNightCycle.main.timePassedAsFloat;
-                    if (fishInInventory.ContainsKey(liveMixin))
-                        t = fishInInventory[liveMixin];
-
-                    //AddDebug("Pickupable Drop " + __instance.gameObject.name);
-                    fishOutOfWater.Add(liveMixin, t);
-                    //fishInInventory.Remove(liveMixin); 
+                    itemsContainer = Inventory.main.GetUsedStorage(i);
+                    if (itemsContainer != null)
+                        break;
                 }
-            }
-
-            //[HarmonyPostfix]
-            //[HarmonyPatch("Pickup")]
-            public static void PickupPostfix(Pickupable __instance)
-            {
-                //AddDebug("Pickupable Pickup " + __instance.gameObject.name);
-                LiveMixin liveMixin = __instance.GetComponent<LiveMixin>();
-                if (liveMixin && fishOutOfWater.ContainsKey(liveMixin))
-                {
-                    if (Player.main.IsUnderwater())
-                    {
-                        //AddDebug("reset time " + liveMixin.gameObject.name);
-                        //fishOutOfWater.Remove(liveMixin);
-                    }
-                    //else
-                    //    CheckFish(liveMixin);
-                }
+                if (itemsContainer != null)
+                    CheckFishInContainer(itemsContainer);
             }
         }
 
-        [HarmonyPatch(typeof(Exosuit), "SetPlayerInside")]
-        class SExosuit_SetPlayerInside_Patch
+        [HarmonyPatch(typeof(Player))]
+        class Player_Patch
         {
-            public static void Postfix(Exosuit __instance, bool inside)
+            [HarmonyPostfix, HarmonyPatch("Update")]
+            public static void UpdatePostfix(Player __instance)
             {
-                //AddDebug("SetPlayerInside " + inside);
-                if (!inside && !__instance.IsUnderwater() && __instance.storageContainer)
-                {
-                    foreach (InventoryItem item in __instance.storageContainer.container)
-                    {
-                        LiveMixin liveMixin = item.item.GetComponent<LiveMixin>();
-                        if (liveMixin && liveMixin.IsAlive() && fishInInventory.ContainsKey(liveMixin))
-                        {
-                            fishOutOfWater.Add(liveMixin, fishInInventory[liveMixin]);
-                            fishInInventory.Remove(liveMixin);
-                        }
-                    }
-                }
-            }
-        }
-
-        [HarmonyPatch(typeof(Inventory), "OnRemoveItem")]
-        class Inventory_OnRemoveItem_Patch
-        {
-            public static void Postfix(Inventory __instance, InventoryItem item)
-            {
-                //AddDebug("Inventory OnRemoveItem " + item.item.name);
-                GameObject go = item.item.gameObject;
-                if (IsEatableFish(go))
-                {
-                    LiveMixin liveMixin = go.GetComponent<LiveMixin>();
-                    fishInInventory.Remove(liveMixin);
-                }
-            }
-        }
-
-        [HarmonyPatch(typeof(ItemsContainer), "NotifyAddItem")]
-        class ItemsContainer_NotifyAddItem_Patch
-        {
-            public static void Postfix(ItemsContainer __instance, InventoryItem item)
-            {
-                if (Player.main.IsUnderwaterForSwimming() || item.item == null || __instance == Inventory.main.container)
+                if (uGUI.isLoading || __instance.currentMountedVehicle == null || vehicleAboveWater == __instance.currentMountedVehicle.wasAboveWater)
                     return;
 
-                GameObject go = item.item.gameObject;
-                if (IsEatableFish(go))
+                vehicleAboveWater = __instance.currentMountedVehicle.wasAboveWater;
+                CheckVehicleInventory(__instance.currentMountedVehicle, vehicleAboveWater);
+            }
+        }
+
+        [HarmonyPatch(typeof(QuickSlots))]
+        class QuickSlots_Patch
+        {
+            [HarmonyPostfix, HarmonyPatch("DrawAsTool")]
+            public static void DrawAsToolPostfix(QuickSlots __instance, PlayerTool tool)
+            {
+                //AddDebug("QuickSlots DrawAsTool " + tool.name);
+                if (Player.main.IsUnderwaterForSwimming() == false && IsEatableFishAlive(tool.gameObject))
+                    CheckFish(tool.gameObject);
+            }
+        }
+
+        [HarmonyPatch(typeof(LiveMixin))]
+        class LiveMixin_Patch
+        {
+            [HarmonyPrefix, HarmonyPatch("Kill")]
+            public static void KillPrefix(LiveMixin __instance)
+            {
+                SaveFish(__instance.gameObject);
+            }
+        }
+
+        [HarmonyPatch(typeof(Aquarium))]
+        class Aquarium_Patch
+        {
+            [HarmonyPostfix, HarmonyPatch("Start")]
+            public static void StartPostfix(Aquarium __instance)
+            {
+                aquariums.Add(__instance.storageContainer.container);
+            }
+            [HarmonyPostfix, HarmonyPatch("AddItem")]
+            public static void AddItemPostfix(Aquarium __instance, InventoryItem item)
+            {
+                //AddDebug("Aquarium AddItem " + item.item.name);
+                SaveFish(item.item.gameObject);
+            }
+            [HarmonyPostfix, HarmonyPatch("RemoveItem")]
+            public static void RemoveItemPostfix(Aquarium __instance, InventoryItem item)
+            {
+                if (Player.main.IsUnderwaterForSwimming() == false)
                 {
-                    //AddDebug("lastAction " + __instance.lastAction.);
-                    LiveMixin liveMixin = go.GetComponent<LiveMixin>();
-                    if (liveMixin == null || !liveMixin.IsAlive())
-                        return;
-
-                    string parentName = __instance.tr.parent.gameObject.name;
-                    if (parentName == "SeaTruckAquariumModule(Clone)" || parentName == "Aquarium(Clone)")
-                        return;
-
-                    //AddDebug(__instance.tr.name + " NotifyAddItem ");
-                    //AddDebug(__instance.tr.parent.name + " NotifyAddItem ");
-                    float t = DayNightCycle.main.timePassedAsFloat;
-                    if (fishInInventory.ContainsKey(liveMixin))
-                        t = fishInInventory[liveMixin];
-                    else if (fishOutOfWater.ContainsKey(liveMixin))
-                        return;
-
-                    fishOutOfWater.Add(liveMixin, t);
+                    //AddDebug("Aquarium RemoveItem " + item.item.name);
+                    DoomFish(item.item.gameObject);
                 }
             }
         }
 
-        [HarmonyPatch(typeof(Player), "TrackSurvivalStats")]
-        class Player_TrackSurvivalStats_Patch
+        //[HarmonyPatch(typeof(TooltipFactory))]
+        class TooltipFactory_Patch
         {
-            public static void Postfix(Player __instance)
+            //[HarmonyPostfix, HarmonyPatch("ItemCommons")]
+            static void ItemCommonsPostfix(StringBuilder sb, TechType techType, GameObject obj)
             {
-                if (uGUI.isLoading)
-                    return;
-                //AddDebug("IsUnderwaterForSwimming " + Player.main.IsUnderwaterForSwimming());
-                //AddDebug("IsUnderwater " + Player.main.IsUnderwater());
-                CheckFish();
-                CheckFishInInventory();
+                if (IsEatableFishAlive(obj))
+                {
+                    Eatable eatable = obj.GetComponent<Eatable>();
+                    if (eatable.timeDecayStart > 0)
+                    {
+                        sb.AppendLine();
+                        sb.Append("FISH DOOMED");
+                    }
+                }
             }
         }
 
-        //[HarmonyPatch(typeof(PDA))]
-        public class PDA_Open_Patch
+        //[HarmonyPatch(typeof(Inventory))]
+        class Inventory_Patch
         {
-            //[HarmonyPatch(nameof(PDA.Open))]
-            public static void Postfix(PDA __instance, PDATab tab)
+            //[HarmonyPostfix, HarmonyPatch("InternalDropItem")]
+            public static void InternalDropItemPostfix(Inventory __instance, Pickupable pickupable)
             {
-                //AddDebug("tab " + tab);
-                //AddDebug("usedStorage.Count " + Inventory.main.usedStorage.Count);
-                //ItemsContainer container = GetOpenContainer();
-                //if (container != null)
-                //    AddFishToList(container);
+                //AddDebug("Inventory InternalDropItem " + pickupable.name);
+                if (Player.main.IsUnderwater() == false && IsEatableFishAlive(pickupable.gameObject))
+                {
 
-                //if (!Player.main.IsUnderwater())
-                //    Player.main.StartCoroutine(KillCoroutine());
+                }
             }
         }
 

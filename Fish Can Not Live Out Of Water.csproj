@@ -33,43 +33,49 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="0Harmony">
-      <HintPath>C:\GAMES\Steam\steamapps\common\SubnauticaZero\BepInEx\core\0Harmony.dll</HintPath>
+      <HintPath>C:\GAMES\Subnautica Below Zero\DLLs\0Harmony.dll</HintPath>
     </Reference>
     <Reference Include="Assembly-CSharp-firstpass_publicized">
-      <HintPath>C:\GAMES\Steam\steamapps\common\SubnauticaZero\DLLs\Assembly-CSharp-firstpass_publicized.dll</HintPath>
+      <HintPath>C:\GAMES\Subnautica Below Zero\DLLs\Assembly-CSharp-firstpass_publicized.dll</HintPath>
     </Reference>
-    <Reference Include="Assembly-CSharp_publicized, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>C:\GAMES\Steam\steamapps\common\SubnauticaZero\DLLs\Assembly-CSharp_publicized.dll</HintPath>
+    <Reference Include="Assembly-CSharp_publicized">
+      <HintPath>C:\GAMES\Subnautica Below Zero\DLLs\Assembly-CSharp_publicized.dll</HintPath>
     </Reference>
     <Reference Include="BepInEx">
-      <HintPath>C:\GAMES\Steam\steamapps\common\SubnauticaZero\DLLs\BepInEx.dll</HintPath>
+      <HintPath>C:\GAMES\Subnautica Below Zero\DLLs\BepInEx.dll</HintPath>
     </Reference>
     <Reference Include="Nautilus">
-      <HintPath>C:\GAMES\Steam\steamapps\common\SubnauticaZero\DLLs\Nautilus.dll</HintPath>
+      <HintPath>C:\GAMES\Subnautica Below Zero\BepInEx\plugins\Nautilus\Nautilus.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="UnityEngine">
-      <HintPath>C:\GAMES\Steam\steamapps\common\SubnauticaZero\SubnauticaZero_Data\Managed\UnityEngine.dll</HintPath>
+      <HintPath>C:\GAMES\Subnautica Below Zero\DLLs\UnityEngine.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
-      <HintPath>C:\GAMES\Steam\steamapps\common\SubnauticaZero\SubnauticaZero_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+      <HintPath>C:\GAMES\Subnautica Below Zero\DLLs\UnityEngine.CoreModule.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.PhysicsModule">
-      <HintPath>C:\GAMES\Steam\steamapps\common\SubnauticaZero\SubnauticaZero_Data\Managed\UnityEngine.PhysicsModule.dll</HintPath>
+      <HintPath>C:\GAMES\Subnautica Below Zero\DLLs\UnityEngine.PhysicsModule.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Patches.cs" />
     <Compile Include="Main.cs" />
+    <Compile Include="OptionsMenu.cs" />
+    <Compile Include="Patches.cs" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Config.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PostBuildEvent>copy /Y "$(TargetPath)" "C:\GAMES\Steam\steamapps\common\SubnauticaZero\BepInEx\plugins\FishCanNotLiveOutOfWater\$(TargetFileName)"</PostBuildEvent>
+    <PostBuildEvent>
+mkdir "D:\SteamLibrary\steamapps\common\SubnauticaZero\BepInEx\plugins\FishCanNotLiveOutOfWater
+copy /Y "$(TargetPath)" "D:\SteamLibrary\steamapps\common\SubnauticaZero\BepInEx\plugins\FishCanNotLiveOutOfWater\$(TargetFileName)"
+
+mkdir "C:\GAMES\Subnautica Below Zero\BepInEx\plugins\FishCanNotLiveOutOfWater
+copy /Y "$(TargetPath)" "C:\GAMES\Subnautica Below Zero\BepInEx\plugins\FishCanNotLiveOutOfWater\$(TargetFileName)"
+	</PostBuildEvent>
   </PropertyGroup>
   <PropertyGroup>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
